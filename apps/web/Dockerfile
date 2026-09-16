@@ -15,6 +15,10 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
 # Pick up base-image security fixes (Trivy gates the build on HIGH/CRITICAL).
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+# The runtime only runs `node server.js`; the bundled npm/corepack CLIs are unused
+# and carry their own CVEs, so drop them.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 RUN useradd --create-home --uid 10001 harbor
 COPY --from=build --chown=harbor:harbor /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=harbor:harbor /repo/apps/web/.next/static ./apps/web/.next/static
