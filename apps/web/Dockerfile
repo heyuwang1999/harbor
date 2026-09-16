@@ -5,8 +5,12 @@ ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable
 WORKDIR /repo
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Manifests first so dependency installation stays cached when only sources change.
 COPY apps/web/package.json apps/web/
+COPY packages/chat-client/package.json packages/chat-client/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --filter @harbor/web...
+# The app imports @harbor/chat-client sources directly (next transpilePackages).
+COPY packages/chat-client packages/chat-client
 COPY apps/web apps/web
 RUN pnpm --filter @harbor/web build
 
