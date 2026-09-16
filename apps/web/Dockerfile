@@ -13,6 +13,8 @@ RUN pnpm --filter @harbor/web build
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
+# Pick up base-image security fixes (Trivy gates the build on HIGH/CRITICAL).
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 10001 harbor
 COPY --from=build --chown=harbor:harbor /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=harbor:harbor /repo/apps/web/.next/static ./apps/web/.next/static
