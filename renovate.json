@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "schedule": ["before 9am on monday"],
+  "timezone": "Asia/Hong_Kong",
+  "packageRules": [
+    {
+      "description": "Tokenizer behaviour changes with ParadeDB versions; re-run spike 0001 before merging (ADR-0001).",
+      "matchPackageNames": ["paradedb/paradedb"],
+      "automerge": false,
+      "labels": ["needs-spike-0001"]
+    }
+  ]
+}

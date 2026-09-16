@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.pnpm-debug.log*
+
+# Env & secrets (commit .env.example only; prod secrets live in SOPS-encrypted files)
+.env
+.env.*
+!.env.example
+*.pem
+
+# Eval outputs are regenerated; only curated reports under docs/ are committed
+evals/reports/*
+!evals/reports/.gitkeep
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

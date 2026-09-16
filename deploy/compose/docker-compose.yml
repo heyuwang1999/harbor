@@ -1,0 +1,48 @@
+# Local dev stack. Infra only by default; add `--profile app` to run the API in a container.
+#   docker compose -f deploy/compose/docker-compose.yml up -d
+#   docker compose -f deploy/compose/docker-compose.yml --profile app up -d --build
+name: harbor
+
+services:
+  postgres:
+    # ParadeDB = Postgres 18 + pg_search (BM25, Jieba tokenizer) + pgvector. See docs/adr/0001.
+    image: paradedb/paradedb:0.25.9-pg18
+    # Parallel HNSW builds allocate dynamic shared memory; Docker's 64MB default fails (ADR-0001).
+    shm_size: 1g
+    environment:
+      POSTGRES_USER: harbor
+      POSTGRES_PASSWORD: harbor
+      POSTGRES_DB: harbor
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harbor -d harbor"]
+      interval: 5s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:9.0.6-alpine
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  mock-llm:
+    build: ../../tools/mock-llm
+    ports: ["127.0.0.1:8100:8100"]
+
+  api:
+    profiles: [app]
+    build: ../../services/api
+    environment:
+      HARBOR_ENV: dev
+      HARBOR_DATABASE_URL: postgresql+asyncpg://harbor:harbor@postgres:5432/harbor
+      HARBOR_REDIS_URL: redis://valkey:6379/0
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+
+volumes:
+  pgdata:
