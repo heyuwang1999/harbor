@@ -56,3 +56,40 @@ def test_embeddings_are_deterministic_normalised_and_sized() -> None:
     assert all(len(v) == 64 for v in vectors)
     assert all(math.isclose(math.sqrt(sum(x * x for x in v)), 1.0) for v in vectors)
     assert vectors[0] != vectors[1]
+
+
+GROUNDED_PROMPT = (
+    '<source id="S1" document="員工手冊" section="病假">'
+    "申請病假津貼時，僱員須提交註冊醫生簽發的醫生證明書。只請一天病假亦須通知分店經理。"
+    "</source>\n\n"
+    '<source id="S2" document="員工手冊" section="年假">'
+    "僱員每服務滿十二個月，可享有有薪年假。"
+    "</source>\n\n"
+    "Question: 請病假要唔要醫生紙？"
+)
+
+
+def test_grounded_mode_quotes_sources_with_real_citation_markers() -> None:
+    payload = {"model": "mock-main", "messages": [{"role": "user", "content": GROUNDED_PROMPT}]}
+    answer = client.post("/v1/chat/completions", json=payload).json()["choices"][0]["message"][
+        "content"
+    ]
+
+    assert "醫生證明書" in answer
+    assert "[S1]" in answer
+    assert "[S2]" in answer
+    assert "Mock answer to" not in answer
+
+
+def test_grounded_mode_is_deterministic() -> None:
+    payload = {"model": "mock-main", "messages": [{"role": "user", "content": GROUNDED_PROMPT}]}
+    first = client.post("/v1/chat/completions", json=payload).json()["choices"][0]["message"]
+    second = client.post("/v1/chat/completions", json=payload).json()["choices"][0]["message"]
+
+    assert first == second
+
+
+def test_prompt_without_sources_falls_back_to_the_refusal_sentence() -> None:
+    from mock_llm.app import NO_SOURCES_REPLY, grounded_reply
+
+    assert grounded_reply("Question: anything") == NO_SOURCES_REPLY

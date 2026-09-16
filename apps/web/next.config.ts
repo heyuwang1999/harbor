@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Monorepo: trace dependencies from the repo root.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
+  // @harbor/chat-client ships TypeScript sources, shared with the M3 widget.
+  transpilePackages: ["@harbor/chat-client"],
 };
 
 export default nextConfig;

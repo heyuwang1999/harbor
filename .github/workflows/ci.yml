@@ -14,24 +14,66 @@ permissions:
   contents: read
 
 jobs:
-  python:
-    name: python (${{ matrix.project }})
+  api:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        project: [services/api, tools/mock-llm]
-    defaults:
-      run:
-        working-directory: ${{ matrix.project }}
+    services:
+      postgres:
+        # Same image as production: BM25 tokenisation and filtered vector search are the
+        # behaviour under test, so a plain postgres image would not exercise them.
+        image: paradedb/paradedb:0.25.9-pg18
+        env:
+          POSTGRES_USER: harbor
+          POSTGRES_PASSWORD: harbor
+          POSTGRES_DB: harbor
+        ports: ["5432:5432"]
+        options: >-
+          --shm-size=1g
+          --health-cmd "pg_isready -U harbor -d harbor"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      valkey:
+        image: valkey/valkey:9.0.6-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+        working-directory: services/api
+      - run: uv run ruff check . && uv run ruff format --check .
+        working-directory: services/api
+      - run: uv run mypy src tests
+        working-directory: services/api
+      - name: Start the mock model server
+        run: |
+          uv run --project tools/mock-llm mock-llm &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8100/healthz && break
+            sleep 1
+          done
+      - run: uv run alembic upgrade head
+        working-directory: services/api
+      - run: uv run pytest -q
+        working-directory: services/api
+
+  mock-llm:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/mock-llm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check . && uv run ruff format --check .
       - run: uv run mypy src tests
       - run: uv run pytest -q
 
@@ -45,13 +87,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @harbor/web lint
-      - run: pnpm --filter @harbor/web typecheck
-      - run: pnpm --filter @harbor/web test
+      - run: pnpm -r lint
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
       - run: pnpm --filter @harbor/web build
 
   images:
-    needs: [python, web]
+    needs: [api, mock-llm, web]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

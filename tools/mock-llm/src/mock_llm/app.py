@@ -17,6 +17,7 @@ import json
 import math
 import os
 import random
+import re
 import struct
 import time
 import uuid
@@ -80,6 +81,32 @@ def message_text(message: dict[str, Any]) -> str:
     return str(content)
 
 
+SOURCE_BLOCK = re.compile(r'<source id="(S\d+)"[^>]*>\s*(.*?)\s*</source>', re.DOTALL)
+SENTENCE_END = re.compile(r"(?<=[。！？!?])|(?<=\. )")
+NO_SOURCES_REPLY = "I could not find an answer to that in the provided sources."
+
+
+def grounded_reply(prompt: str, sentences_per_source: int = 2) -> str:
+    """Answer from the <source> blocks in the prompt, with real citation markers.
+
+    This keeps the offline demo honest: the text comes from the retrieved passages and
+    the `[S#]` markers are real, so citation validation, the source drawer and the
+    grounding checks all exercise the same code paths they would with a live model.
+    It is extractive, not generative — no paraphrasing, no reasoning.
+    """
+    sources = SOURCE_BLOCK.findall(prompt)
+    if not sources:
+        return NO_SOURCES_REPLY
+
+    parts = []
+    for marker, body in sources[:2]:
+        sentences = [s.strip() for s in SENTENCE_END.split(body.replace("\n", " ")) if s.strip()]
+        excerpt = " ".join(sentences[:sentences_per_source]).strip()
+        if excerpt:
+            parts.append(f"{excerpt} [{marker}]")
+    return " ".join(parts) if parts else NO_SOURCES_REPLY
+
+
 def build_reply(body: dict[str, Any], behaviour: Behaviour) -> str:
     if behaviour.response is not None:
         return behaviour.response
@@ -88,6 +115,8 @@ def build_reply(body: dict[str, Any], behaviour: Behaviour) -> str:
         return "{}"
     messages = body.get("messages") or []
     last_user = next((message_text(m) for m in reversed(messages) if m.get("role") == "user"), "")
+    if "<source id=" in last_user:
+        return grounded_reply(last_user)
     return f"Mock answer to: {last_user[:200]}"
 
 
