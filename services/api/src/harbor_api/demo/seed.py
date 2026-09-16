@@ -23,10 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from harbor_api.core.config import Settings, get_settings
 from harbor_api.core.logging import configure_logging
 from harbor_api.core.text import normalize
-from harbor_api.ingestion.chunking import CHUNKER_VERSION, chunk_markdown
+from harbor_api.ingestion.chunking import CHUNKER_VERSION
+from harbor_api.ingestion.pipeline import DocumentRef, index_markdown
 from harbor_api.llm.registry import embedding_client
 from harbor_api.models import (
-    Chunk,
     Document,
     DocumentACL,
     Group,
@@ -185,7 +185,6 @@ async def seed(settings: Settings | None = None) -> SeedReport:
                     document.visibility = fixture.visibility
                     document.content_hash = fixture.content_hash
                     document.version += 1
-                    await session.execute(delete(Chunk).where(Chunk.document_id == document.id))
 
                 await session.execute(
                     delete(DocumentACL).where(DocumentACL.document_id == document.id)
@@ -196,31 +195,25 @@ async def seed(settings: Settings | None = None) -> SeedReport:
                         session.add(DocumentACL(document_id=document.id, group_id=groups[key]))
                 principals = [groups[key] for key in principal_keys]
 
-                pieces = chunk_markdown(fixture.body, title=fixture.title)
-                vectors = await embedder.embed([piece.embed_text for piece in pieces])
-                for piece, vector in zip(pieces, vectors, strict=True):
-                    session.add(
-                        Chunk(
-                            tenant_id=tenant.id,
-                            document_id=document.id,
-                            ordinal=piece.ordinal,
-                            heading_path=piece.heading_path,
-                            text=piece.text,
-                            text_norm=piece.index_text,
-                            token_count=piece.token_count,
-                            embedding=vector,
-                            embedding_model=embedder.model,
-                            visibility=fixture.visibility,
-                            allowed_principals=principals,
-                        )
-                    )
+                chunks = await index_markdown(
+                    session,
+                    document=DocumentRef(
+                        id=document.id,
+                        tenant_id=tenant.id,
+                        title=fixture.title,
+                        visibility=fixture.visibility,
+                    ),
+                    markdown=fixture.body,
+                    principals=principals,
+                    embedder=embedder,
+                )
                 document.status = DocumentStatus.INDEXED
                 report.documents_indexed += 1
-                report.chunks += len(pieces)
+                report.chunks += chunks
                 log.info(
                     "demo.document_indexed",
                     document=fixture.external_id,
-                    chunks=len(pieces),
+                    chunks=chunks,
                     visibility=fixture.visibility.value,
                 )
     finally:

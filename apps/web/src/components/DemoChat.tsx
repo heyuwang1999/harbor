@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type Citation, type DoneEvent, type Role, streamChat } from "@harbor/chat-client";
@@ -149,11 +150,16 @@ export function DemoChat() {
               海港餅店 · knowledge assistant with cited answers
             </p>
           </div>
-          {mock && (
-            <span className="rounded-full bg-zinc-200 px-3 py-1 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-              mock model · answers quote the retrieved passages verbatim
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {mock && (
+              <span className="rounded-full bg-zinc-200 px-3 py-1 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                mock model · answers quote the retrieved passages verbatim
+              </span>
+            )}
+            <Link href="/documents" className="text-sm underline underline-offset-4">
+              Documents →
+            </Link>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

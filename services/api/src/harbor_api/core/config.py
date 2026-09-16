@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
@@ -23,6 +24,12 @@ class Settings(BaseSettings):
     readiness_timeout_s: float = Field(default=2.0, gt=0)
 
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # --- Ingestion ---
+    storage_root: Path = Path("./var/storage")
+    # Run ingestion inline instead of dispatching to Celery: tests, and `make demo` seeding.
+    ingest_eager: bool = False
+    parser_profile: Literal["light", "docling"] = "light"
 
     # --- Demo (replaced by real auth in M2) ---
     demo_tenant_slug: str = "harbor-demo"

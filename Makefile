@@ -5,7 +5,7 @@ COMPOSE := $(DOCKER) compose -f deploy/compose/docker-compose.yml
 export NO_PROXY := localhost,127.0.0.1
 export no_proxy := localhost,127.0.0.1
 
-.PHONY: help install infra infra-down demo demo-down demo-logs app migrate seed dev-api dev-web test test-unit lint typecheck check spike-0001
+.PHONY: help install infra infra-down demo demo-down demo-logs app migrate seed dev-api dev-worker dev-web test test-unit lint typecheck check spike-0001
 
 help: ## List targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -49,6 +49,9 @@ seed: ## Load the demo corpus (idempotent)
 
 dev-api: ## Run the API with reload against local infra
 	cd services/api && HARBOR_LOG_JSON=false uv run uvicorn harbor_api.app:create_app --factory --reload --port 8000
+
+dev-worker: ## Run the ingestion worker against local infra
+	cd services/api && HARBOR_LOG_JSON=false uv run celery -A harbor_api.workers.celery_app worker --loglevel=info --concurrency=2
 
 dev-web: ## Run the web app with hot reload
 	pnpm --filter @harbor/web dev

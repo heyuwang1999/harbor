@@ -7,7 +7,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from harbor_api.core.config import Settings, get_settings
+from harbor_api.core.config import Settings
 from harbor_api.core.resources import Resources
 from harbor_api.retrieval.access import ROLE_GROUPS, AccessScope, scope_for_role
 
@@ -23,6 +23,17 @@ class TenantContext:
 _lock = asyncio.Lock()
 
 
+def get_app_settings(request: Request) -> Settings:
+    """Settings the app was created with.
+
+    `get_settings()` is a process-wide cache, fine for the worker and CLIs but wrong for
+    request handling: an app created with explicit settings (tests, embedded use) must see
+    its own, not whatever the environment happened to hold at import time.
+    """
+    settings: Settings = request.app.state.settings
+    return settings
+
+
 def get_resources(request: Request) -> Resources:
     resources: Resources = request.app.state.resources
     return resources
@@ -30,7 +41,7 @@ def get_resources(request: Request) -> Resources:
 
 async def get_tenant_context(
     request: Request,
-    settings: Annotated[Settings, Depends(get_settings)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
     resources: Annotated[Resources, Depends(get_resources)],
 ) -> TenantContext:
     """Resolve the demo tenant once per process.
@@ -79,7 +90,7 @@ async def get_tenant_context(
 
 async def get_scope(
     tenant: Annotated[TenantContext, Depends(get_tenant_context)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
     x_demo_role: Annotated[str | None, Header()] = None,
 ) -> AccessScope:
     """Demo-only role switch. M2 replaces this header with Better Auth membership."""
@@ -97,7 +108,7 @@ def get_sessionmaker(
     return resources.sessionmaker
 
 
-SettingsDep = Annotated[Settings, Depends(get_settings)]
+SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 ResourcesDep = Annotated[Resources, Depends(get_resources)]
 TenantDep = Annotated[TenantContext, Depends(get_tenant_context)]
 ScopeDep = Annotated[AccessScope, Depends(get_scope)]

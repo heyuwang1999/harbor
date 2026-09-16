@@ -50,6 +50,21 @@ services:
       mock-llm: { condition: service_started }
     restart: "no"
 
+  # Parsing and embedding happen here, not in the request: see workers/celery_app.py.
+  worker:
+    profiles: [app, demo]
+    build: ../../services/api
+    command: celery -A harbor_api.workers.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      HARBOR_DATABASE_URL: *db-app
+      HARBOR_REDIS_URL: redis://valkey:6379/0
+      HARBOR_EMBEDDING_BASE_URL: http://mock-llm:8100/v1
+      HARBOR_STORAGE_ROOT: /app/var/storage
+    volumes: [uploads:/app/var/storage]
+    depends_on:
+      postgres: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+
   api:
     profiles: [app, demo]
     build: ../../services/api
@@ -60,6 +75,9 @@ services:
       HARBOR_REDIS_URL: redis://valkey:6379/0
       HARBOR_LLM_BASE_URL: http://mock-llm:8100/v1
       HARBOR_EMBEDDING_BASE_URL: http://mock-llm:8100/v1
+      HARBOR_STORAGE_ROOT: /app/var/storage
+    # Uploads are written by the API and read by the worker, so they share a volume.
+    volumes: [uploads:/app/var/storage]
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -80,3 +98,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:

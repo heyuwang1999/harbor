@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from harbor_api.api import health, meta
-from harbor_api.api.routes import chat, documents, feedback, search
+from harbor_api.api.routes import chat, documents, feedback, search, uploads
 from harbor_api.core.config import Settings, get_settings
 from harbor_api.core.logging import configure_logging
 from harbor_api.core.resources import Resources
@@ -25,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await app.state.resources.close()
 
     app = FastAPI(title="Harbor API", version=settings.version, lifespan=lifespan)
+    app.state.settings = settings
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -38,6 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(search.router)
     app.include_router(documents.router)
     app.include_router(feedback.router)
+    app.include_router(uploads.router)
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:

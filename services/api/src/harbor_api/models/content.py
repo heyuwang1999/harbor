@@ -27,9 +27,10 @@ class SourceKind(enum.StrEnum):
 
 
 class DocumentStatus(enum.StrEnum):
-    PENDING = "pending"
+    PENDING = "pending"  # stored, waiting for a worker
+    PARSING = "parsing"
     INDEXED = "indexed"
-    FAILED = "failed"
+    FAILED = "failed"  # reason is in metadata.error
 
 
 def _enum(enum_type: type[enum.StrEnum], name: str) -> Enum:
@@ -64,6 +65,9 @@ class Document(UUIDPrimaryKey, Timestamps, Base):
     content_hash: Mapped[str] = mapped_column(String(64))
     version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[DocumentStatus] = mapped_column(_enum(DocumentStatus, "document_status"))
+    # Where the original file lives, so a parser or chunker change can re-index without a
+    # re-upload. Null for fixture documents, which carry their source in the repo.
+    storage_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     doc_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
 
 

@@ -4,7 +4,8 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Request, Response, status
 from pydantic import BaseModel
 
-from harbor_api.core.config import Settings, get_settings
+from harbor_api.api.deps import get_app_settings
+from harbor_api.core.config import Settings
 from harbor_api.core.resources import HealthCheck
 
 router = APIRouter(tags=["health"])
@@ -30,7 +31,7 @@ async def healthz() -> dict[str, str]:
 async def readyz(
     response: Response,
     checks: Annotated[dict[str, HealthCheck], Depends(get_readiness_checks)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> ReadinessReport:
     """Readiness: dependencies reachable. Kubernetes stops routing traffic on 503."""
 
